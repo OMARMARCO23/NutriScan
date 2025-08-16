@@ -1,0 +1,8 @@
+{
+  "name": "NutriScan",
+  "description": "An AI-powered application that helps users make healthier grocery shopping decisions by analyzing ingredient labels from photos and providing instant health assessments.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "prompt": ""
+}

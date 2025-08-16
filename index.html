@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NutriScan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      @keyframes fade-in {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      .animate-fade-in {
+        animation: fade-in 0.5s ease-out forwards;
+      }
+      @keyframes fade-in-up {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in-up {
+        animation: fade-in-up 0.5s ease-out forwards;
+        opacity: 0; /* Start hidden */
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.1.1",
+    "react/jsx-runtime": "https://esm.sh/react@19.1.1/jsx-runtime",
+    "react-dom/client": "https://esm.sh/react-dom@19.1.1/client",
+    "@google/genai": "https://esm.sh/@google/genai@1.13.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
+    "react/": "https://esm.sh/react@^19.1.1/"
+  }
+}
+</script>
+<!-- Add Babel for in-browser JSX transpilation -->
+<script src="https://unpkg.com/@babel/standalone@7.24.9/babel.min.js"></script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-gray-900 text-white">
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { GoogleGenAI, Type } from "@google/genai";
+
+// ======== From constants.ts ========
+const LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'fr', name: 'Français' },
+  { code: 'es', name: 'Español' },
+];
+const MAX_HISTORY_ITEMS = 20;
+const TRANSLATIONS = {
+  appTitle: { en: 'NutriScan', fr: 'NutriScan', es: 'NutriScan' },
+  tagline: { en: 'Your pocket nutritionist. Snap a label to start.', fr: 'Votre nutritionniste de poche. Prenez une étiquette en photo pour commencer.', es: 'Tu nutricionista de bolsillo. Escanea una etiqueta para empezar.'},
+  scan: { en: 'Scan', fr: 'Scanner', es: 'Escanear' },
+  history: { en: 'History', fr: 'Historique', es: 'Historial' },
+  settings: { en: 'Settings', fr: 'Réglages', es: 'Ajustes' },
+  language: { en: 'Language', fr: 'Langue', es: 'Idioma' },
+  dataManagement: { en: 'Data Management', fr: 'Gestion des données', es: 'Gestión de datos' },
+  confirmClearHistory: { en: 'Are you sure you want to delete all scan history? This action cannot be undone.', fr: 'Êtes-vous sûr de vouloir supprimer tout l\'historique des scans ? Cette action est irréversible.', es: '¿Está seguro de que desea eliminar todo el historial de escaneos? Esta acción no se puede deshacer.' },
+  scanLabel: { en: 'Scan an Ingredient Label', fr: 'Scannez une étiquette d\'ingrédients', es: 'Escanee una etiqueta de ingredientes' },
+  takePhoto: { en: 'Take Photo', fr: 'Prendre une photo', es: 'Tomar foto' },
+  uploadPhoto: { en: 'Upload from Gallery', fr: 'Télécharger de la galerie', es: 'Subir de la galería' },
+  analyzing: { en: 'Analyzing...', fr: 'Analyse en cours...', es: 'Analizando...' },
+  analysisResults: { en: 'Analysis Results', fr: 'Résultats de l\'analyse', es: 'Resultados del Análisis' },
+  overallScore: { en: 'Overall Score', fr: 'Score Global', es: 'Puntuación General' },
+  healthRating: { en: 'Health Rating', fr: 'Évaluation de Santé', es: 'Calificación de Salud' },
+  overallAssessment: { en: 'Overall Assessment', fr: 'Évaluation Globale', es: 'Evaluación General' },
+  recommendations: { en: 'Recommendations', fr: 'Recommandations', es: 'Recomendaciones' },
+  ingredients: { en: 'Ingredients Breakdown', fr: 'Détail des Ingrédients', es: 'Desglose de Ingredientes' },
+  highlights: { en: 'Highlights', fr: 'Points Saillants', es: 'Destacados' },
+  safeIngredients: { en: 'Safe Ingredients', fr: 'Ingrédients Sûrs', es: 'Ingredientes Seguros' },
+  toWatch: { en: 'To Watch', fr: 'À Surveiller', es: 'A Vigilar' },
+  category: { en: 'Category', fr: 'Catégorie', es: 'Categoría' },
+  purpose: { en: 'Purpose', fr: 'Objectif', es: 'Propósito' },
+  healthImpact: { en: 'Health Impact', fr: 'Impact sur la santé', es: 'Impacto en la Salud' },
+  safetyLevel: { en: 'Safety Level', fr: 'Niveau de sécurité', es: 'Nivel de Seguridad' },
+  concerns: { en: 'Concerns', fr: 'Préoccupations', es: 'Preocupaciones' },
+  clearHistory: { en: 'Clear History', fr: 'Effacer l\'historique', es: 'Borrar Historial' },
+  noHistory: { en: 'No history yet. Start by scanning a product!', fr: 'Aucun historique. Commencez par scanner un produit !', es: 'Aún no hay historial. ¡Empiece escaneando un producto!' },
+  errorTitle: { en: 'An Error Occurred', fr: 'Une erreur est survenue', es: 'Ocurrió un error' },
+  errorDescription: { en: 'We couldn\'t analyze your image. Please try again with a clear, well-lit photo of the ingredient label.', fr: 'Nous n\'avons pas pu analyser votre image. Veuillez réessayer avec une photo claire et bien éclairée de l\'étiquette des ingrédients.', es: 'No pudimos analizar su imagen. Por favor, inténtelo de nuevo con una foto clara y bien iluminada de la etiqueta de ingredientes.' },
+  tryAgain: { en: 'Try Again', fr: 'Réessayer', es: 'Intentar de nuevo' },
+};
+
+// ======== From hooks/useLocalStorage.ts ========
+function useLocalStorage(key, initialValue) {
+  const { useState, useEffect } = React;
+  const [storedValue, setStoredValue] = useState(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(error);
+      return initialValue;
+    }
+  });
+  const setValue = (value) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === key && e.newValue) {
+        setStoredValue(JSON.parse(e.newValue));
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [key]);
+  return [storedValue, setValue];
+}
+
+// ======== From hooks/useTranslations.ts ========
+const useTranslations = (lang) => {
+  const { useCallback } = React;
+  return {
+    t: useCallback((key) => TRANSLATIONS[key]?.[lang] || TRANSLATIONS[key]?.['en'] || key, [lang])
+  };
+};
+
+// ======== From utils/imageUtils.ts ========
+const toBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result.split(',')[1]) : reject(new Error('Failed to read file as Base64 string'));
+    reader.onerror = (error) => reject(error);
+  });
+
+// ======== From utils/scoringUtils.ts ========
+const getGradeFromRating = (rating) => {
+  if (rating >= 4.5) return 'A';
+  if (rating >= 3.5) return 'B';
+  if (rating >= 2.5) return 'C';
+  if (rating >= 1.5) return 'D';
+  return 'F';
+};
+const getGradeColorFromRating = (rating) => {
+  if (rating >= 4.5) return 'bg-green-500';
+  if (rating >= 3.5) return 'bg-lime-500';
+  if (rating >= 2.5) return 'bg-yellow-500';
+  if (rating >= 1.5) return 'bg-orange-500';
+  return 'bg-red-500';
+};
+
+// ======== From services/geminiService.ts ========
+const analyzeImage = async (base64Image, language) => {
+  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+  if (!apiKey) throw new Error("API key is not configured in the environment.");
+  
+  const ai = new GoogleGenAI({ apiKey });
+  const languageMap = { en: 'English', fr: 'French', es: 'Spanish' };
+  const prompt = `You are 'NutriScan', an expert nutritionist AI. Analyze the ingredients from the provided image of a food label. Your primary goal is to provide a clear, concise, and accurate health assessment.
+
+**Response Rules:**
+1.  **Language:** The entire analysis and all text in your response MUST be in ${languageMap[language]}.
+2.  **Scoring:** Provide a single \`overallHealthRating\` on a strict scale of 1.0 to 5.0, where 1.0 is extremely unhealthy and 5.0 is exceptionally healthy. This score should reflect the overall nutritional quality. For example, a sugary soda like Coca-Cola should be around 1.0-1.5. A product with whole, natural ingredients should be 4.5-5.0.
+3.  **Assessment:** The \`overallAssessment\` should be a balanced summary explaining the reasoning behind the score.
+4.  **Ingredients:** Analyze each significant ingredient. Provide its purpose, health impact, and a safety level ('Safe', 'Moderate', 'Caution', 'Avoid'). Assign a \`healthRating\` from 1 to 5 for each ingredient individually.
+
+Your response must be in JSON format and strictly adhere to the provided schema. Do not include any introductory or concluding text outside of the JSON structure.`;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: { parts: [{ inlineData: { mimeType: 'image/jpeg', data: base64Image } }, { text: prompt }] },
+      config: { responseMimeType: 'application/json', responseSchema: {type: Type.OBJECT,properties: {productName: { type: Type.STRING },overallHealthRating: { type: Type.NUMBER, description: "A single, holistic health rating for the product on a scale of 1.0 (very unhealthy) to 5.0 (very healthy)." },overallAssessment: { type: Type.STRING },recommendations: {type: Type.OBJECT,properties: {personalizedAdvice: { type: Type.STRING },healthierAlternatives: { type: Type.STRING },},},ingredients: {type: Type.ARRAY,items: {type: Type.OBJECT,properties: {name: { type: Type.STRING },category: { type: Type.STRING },purpose: { type: Type.STRING },healthImpact: { type: Type.STRING },safetyLevel: {type: Type.STRING,enum: ['Safe', 'Moderate', 'Caution', 'Avoid'],},healthRating: { type: Type.NUMBER },concerns: { type: Type.STRING },},},},},}, },
+    });
+    return JSON.parse(response.text.trim());
+  } catch (error) {
+    console.error("Error analyzing image with Gemini API:", error);
+    if (error instanceof Error && error.message.includes("JSON")) console.error("Received malformed JSON from API");
+    throw new Error("Failed to get a valid analysis from the AI. Check if your API key is valid or if the service is down.");
+  }
+};
+
+// ======== From components/Icons.tsx ========
+const CameraIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>);
+const GalleryIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>);
+const HistoryIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>);
+const BackIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>);
+const ChevronDownIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>);
+const TrashIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>);
+const InfoIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>);
+const CheckCircleIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>);
+const SettingsIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.096 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>);
+const ScannerIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1"><path d="M4 8V6a2 2 0 0 1 2-2h2" /><path d="M4 16v2a2 2 0 0 0 2 2h2" /><path d="M16 4h2a2 2 0 0 1 2 2v2" /><path d="M16 20h2a2 2 0 0 0 2-2v-2" /><path d="M7 12h10" /></svg>);
+
+// ======== From components/ImageSelector.tsx ========
+const ImageSelector = ({ onImageSelect, language }) => {
+  const { useRef } = React;
+  const { t } = useTranslations(language);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const handleFileChange = (event) => {
+    if (event.target.files && event.target.files[0]) onImageSelect(event.target.files[0]);
+    event.target.value = null;
+  };
+  return (<div className="relative flex flex-col items-center justify-center h-full p-4 text-center overflow-hidden"><ScannerIcon className="absolute w-72 h-72 text-green-500/10" /><div className="relative bg-gray-800/50 p-8 rounded-2xl shadow-2xl backdrop-blur-md border border-gray-700 max-w-md w-full animate-fade-in"><h2 className="text-3xl font-bold mb-2 text-green-300">{t('appTitle')}</h2><p className="text-gray-300 mb-8">{t('tagline')}</p><div className="space-y-4"><button onClick={() => cameraInputRef.current?.click()} className="w-full flex items-center justify-center bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-lg transition-transform transform hover:scale-105 shadow-lg"><CameraIcon className="w-6 h-6 mr-3" />{t('takePhoto')}</button><button onClick={() => galleryInputRef.current?.click()} className="w-full flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 px-4 rounded-lg transition-transform transform hover:scale-105 shadow-lg"><GalleryIcon className="w-6 h-6 mr-3" />{t('uploadPhoto')}</button></div><input type="file" accept="image/*" ref={cameraInputRef} onChange={handleFileChange} className="hidden" capture="environment" /><input type="file" accept="image/jpeg,image/png,image/webp" ref={galleryInputRef} onChange={handleFileChange} className="hidden" /></div></div>);
+};
+
+// ======== From components/LoadingSpinner.tsx ========
+const LoadingSpinner = ({ language }) => {
+  const { t } = useTranslations(language);
+  return (<div className="flex flex-col items-center justify-center h-full"><div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-green-500"></div><p className="mt-4 text-lg font-semibold">{t('analyzing')}</p></div>);
+};
+
+// ======== From components/ErrorDisplay.tsx ========
+const ErrorDisplay = ({ onRetry, language, message }) => {
+  const { t } = useTranslations(language);
+  return (<div className="flex flex-col items-center justify-center h-full p-4 text-center"><div className="bg-red-900/50 p-8 rounded-2xl shadow-2xl backdrop-blur-md border border-red-700 max-w-md w-full"><InfoIcon className="w-16 h-16 mx-auto mb-4 text-red-400" /><h2 className="text-2xl font-bold mb-2 text-red-300">{t('errorTitle')}</h2><p className="text-red-200 mb-8">{message || t('errorDescription')}</p><button onClick={onRetry} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105 shadow-lg">{t('tryAgain')}</button></div></div>);
+};
+
+// ======== Component Definitions ========
+const SimpleHeader = ({ title, onBack }) => {
+    return (
+        <header className="bg-gray-900/80 backdrop-blur-sm p-4 flex items-center fixed top-0 left-0 right-0 z-50 shadow-lg h-16">
+            <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-700 transition-colors absolute">
+                <BackIcon className="w-6 h-6" />
+            </button>
+            <h1 className="text-xl font-bold text-green-400 text-center w-full truncate px-12">{title}</h1>
+        </header>
+    );
+};
+const BottomNav = ({ currentView, onNavigate, t }) => {
+    const navItems = [
+        { view: 'scan', label: t('scan'), icon: CameraIcon },
+        { view: 'history', label: t('history'), icon: HistoryIcon },
+        { view: 'settings', label: t('settings'), icon: SettingsIcon },
+    ];
+    const activeView = ['scan', 'loading', 'results', 'error'].includes(currentView) ? 'scan' : currentView;
+
+    return (
+        <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700 z-50">
+            <div className="max-w-3xl mx-auto flex justify-around items-center h-16">
+                {navItems.map(({ view, label, icon: Icon }) => (
+                    <button
+                        key={view}
+                        onClick={() => onNavigate(view)}
+                        className={`flex flex-col items-center justify-center w-full h-full transition-colors ${activeView === view ? 'text-green-400' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        <Icon className="w-6 h-6 mb-1" />
+                        <span className="text-xs font-medium">{label}</span>
+                    </button>
+                ))}
+            </div>
+        </nav>
+    );
+};
+const SettingsView = ({ language, setLanguage, onClearHistory, t }) => {
+    const handleClear = () => {
+        if (window.confirm(t('confirmClearHistory'))) {
+            onClearHistory();
+        }
+    };
+    return (
+        <div className="p-4 max-w-3xl mx-auto animate-fade-in">
+            <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg border border-gray-700">
+                <h3 className="text-lg font-semibold mb-3 text-gray-300">{t('language')}</h3>
+                <div className="flex flex-col space-y-2">
+                    {LANGUAGES.map(({ code, name }) => (
+                        <button key={code} onClick={() => setLanguage(code)} className={`p-3 rounded-lg text-left transition-colors ${language === code ? 'bg-green-600 text-white font-bold' : 'bg-gray-700 hover:bg-gray-600'}`}>{name}</button>
+                    ))}
+                </div>
+            </div>
+            <div className="bg-gray-800 p-4 rounded-lg shadow-lg border border-gray-700">
+                <h3 className="text-lg font-semibold mb-3 text-gray-300">{t('dataManagement')}</h3>
+                <div className="space-y-3">
+                  <button onClick={handleClear} className="w-full flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105 shadow-lg"><TrashIcon className="w-5 h-5 mr-2" />{t('clearHistory')}</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+const AnalysisViewFull = ({ result, language }) => {
+  const { useMemo } = React;
+  const { t } = useTranslations(language);
+  const safeResult = {
+    productName: result.productName || 'Unnamed Product',
+    overallHealthRating: typeof result.overallHealthRating === 'number' ? result.overallHealthRating : 1,
+    overallAssessment: result.overallAssessment || 'No assessment provided.',
+    recommendations: result.recommendations || { personalizedAdvice: 'N/A', healthierAlternatives: 'N/A' },
+    ingredients: Array.isArray(result.ingredients) ? result.ingredients : [],
+  };
+
+  const grade = getGradeFromRating(safeResult.overallHealthRating);
+  const gradeColor = getGradeColorFromRating(safeResult.overallHealthRating);
+  
+  const ingredientSummary = useMemo(() => {
+    const safeCount = safeResult.ingredients.filter(i => i.safetyLevel === 'Safe').length;
+    const watchCount = safeResult.ingredients.length - safeCount;
+    return { safeCount, watchCount };
+  }, [safeResult.ingredients]);
+
+  return (<div className="p-4 max-w-3xl mx-auto animate-fade-in"><h2 className="text-2xl font-bold text-center mb-1">{t('analysisResults')}</h2><h3 className="text-3xl font-extrabold text-center text-green-300 mb-6 truncate">{safeResult.productName}</h3><div className="grid grid-cols-2 gap-4 mb-6"><div className="bg-gray-800 p-4 rounded-lg text-center shadow-lg border border-gray-700"><h4 className="text-sm font-semibold text-gray-400 mb-2">{t('overallScore')}</h4><div className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center text-5xl font-extrabold text-white ${gradeColor}`}>{grade}</div></div><div className="bg-gray-800 p-4 rounded-lg shadow-lg border border-gray-700 flex flex-col justify-center"><h4 className="text-sm font-semibold text-gray-400 mb-2">{t('healthRating')}</h4><div className="flex items-center justify-between mb-1"><span className="text-xs text-gray-300">Poor</span><span className="text-xs text-gray-300">Excellent</span></div><div className={`w-full h-4 bg-gray-700 rounded-full`}><div className={`h-4 rounded-full ${getGradeColorFromRating(safeResult.overallHealthRating)}`} style={{ width: `${safeResult.overallHealthRating * 20}%` }}></div></div><p className="text-center mt-2 text-xl font-bold">{safeResult.overallHealthRating.toFixed(1)} / 5.0</p></div></div><div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg border border-gray-700"><h4 className="text-xl font-bold mb-2 flex items-center"><InfoIcon className="w-6 h-6 mr-2 text-blue-400" />{t('overallAssessment')}</h4><p className="text-gray-300">{safeResult.overallAssessment}</p></div><div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg border border-gray-700"><h4 className="text-xl font-bold mb-2 flex items-center"><CheckCircleIcon className="w-6 h-6 mr-2 text-green-400"/>{t('recommendations')}</h4><p className="text-gray-300 mb-2"><strong>{language === 'en' ? 'Advice:' : language === 'fr' ? 'Conseil:' : 'Consejo:'}</strong> {safeResult.recommendations.personalizedAdvice}</p><p className="text-gray-300"><strong>{language === 'en' ? 'Alternatives:' : language === 'fr' ? 'Alternatives:' : 'Alternativas:'}</strong> {safeResult.recommendations.healthierAlternatives}</p></div><div><h4 className="text-xl font-bold mb-4">{t('ingredients')}</h4><div className="bg-gray-800 p-4 rounded-lg mb-4 shadow-lg border border-gray-700"><h5 className="text-lg font-semibold mb-3 text-gray-300">{t('highlights')}</h5><div className="flex justify-around text-center"><div className="text-green-400"><p className="text-3xl font-bold">{ingredientSummary.safeCount}</p><p className="text-sm">{t('safeIngredients')}</p></div><div className="text-orange-400"><p className="text-3xl font-bold">{ingredientSummary.watchCount}</p><p className="text-sm">{t('toWatch')}</p></div></div></div>{safeResult.ingredients.map((ing, index) => <IngredientItemFull key={index} ingredient={ing} language={language} index={index} />)}</div></div>);
+};
+const IngredientItemFull = React.memo(({ ingredient, language, index }) => {
+  const { useState } = React;
+  const [isOpen, setIsOpen] = useState(false);
+  const { t } = useTranslations(language);
+  const safetyStyles = {
+    Safe: 'bg-green-500/20 text-green-300',
+    Moderate: 'bg-yellow-500/20 text-yellow-300',
+    Caution: 'bg-orange-500/20 text-orange-300',
+    Avoid: 'bg-red-500/20 text-red-300'
+  };
+  return (<div className="bg-gray-800/70 rounded-lg border border-gray-700 mb-2 animate-fade-in-up" style={{ animationDelay: `${index * 50}ms` }}><button onClick={() => setIsOpen(!isOpen)} className="w-full p-4 flex justify-between items-center text-left"><span className="font-semibold text-lg flex-1 truncate pr-2">{ingredient.name}</span><div className="flex items-center space-x-3"><span className={`px-3 py-1 text-xs font-bold rounded-full ${safetyStyles[ingredient.safetyLevel]}`}>{ingredient.safetyLevel}</span><ChevronDownIcon className={`w-6 h-6 transform transition-transform ${isOpen ? 'rotate-180' : ''}`} /></div></button>{isOpen && (<div className="p-4 border-t border-gray-700"><div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm"><div><strong className="text-gray-400">{t('category')}:</strong> {ingredient.category}</div><div className="flex items-center"><strong className="text-gray-400 mr-2">{t('healthRating')}:</strong> <div className={`w-24 h-2.5 bg-gray-700 rounded-full`}><div className={`h-2.5 rounded-full ${getGradeColorFromRating(ingredient.healthRating)}`} style={{ width: `${ingredient.healthRating * 20}%` }}></div></div></div><div className="md:col-span-2"><strong className="text-gray-400">{t('purpose')}:</strong> {ingredient.purpose}</div><div className="md:col-span-2"><strong className="text-gray-400">{t('healthImpact')}:</strong> {ingredient.healthImpact}</div>{ingredient.concerns && <div className="md:col-span-2"><strong className="text-gray-400">{t('concerns')}:</strong> {ingredient.concerns}</div>}</div></div>)}</div>);
+});
+const HistoryViewFull = ({ history, onSelect, onDelete, language }) => {
+  const { t } = useTranslations(language);
+  const handleDeleteClick = (e, id) => { e.stopPropagation(); onDelete(id); };
+  if (history.length === 0) return (<div className="flex flex-col items-center justify-center h-full p-4 text-center"><h2 className="text-2xl font-bold mb-4">{t('history')}</h2><p className="text-gray-400">{t('noHistory')}</p></div>);
+  return (<div className="p-4 max-w-3xl mx-auto animate-fade-in"><div className="flex justify-between items-center mb-4"><h2 className="text-2xl font-bold">{t('history')}</h2></div><div className="grid grid-cols-2 sm:grid-cols-3 gap-4">{history.map((item) => (<div key={item.id} className="relative aspect-[3/4] rounded-lg overflow-hidden shadow-lg cursor-pointer transform transition-transform hover:scale-105" onClick={() => onSelect(item)}><div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${item.imageDataUrl})` }}></div><div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div><div className="absolute bottom-0 left-0 right-0 p-3 text-white"><span className="font-bold text-sm leading-tight line-clamp-2">{item.analysis.productName}</span><div className="flex items-center mt-1"><div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold text-white ${getGradeColorFromRating(item.analysis.overallHealthRating)}`}>{getGradeFromRating(item.analysis.overallHealthRating)}</div><span className="ml-2 text-xs opacity-80">{new Date(item.timestamp).toLocaleDateString()}</span></div></div><button onClick={(e) => handleDeleteClick(e, item.id)} className="absolute top-2 right-2 p-1.5 bg-red-600/80 rounded-full transition-colors hover:bg-red-500"><TrashIcon className="w-4 h-4 text-white" /></button></div>))}</div></div>);
+};
+
+// ======== From App.tsx ========
+const App = () => {
+    const { useState, useCallback } = React;
+    const [view, setView] = useState('scan');
+    const [language, setLanguage] = useLocalStorage('nutriscan-lang', 'en');
+    const [history, setHistory] = useLocalStorage('nutriscan-history', []);
+    const [currentResult, setCurrentResult] = useState(null);
+    const [error, setError] = useState(null);
+    const { t } = useTranslations(language);
+
+    const handleImageSelect = useCallback(async (file) => {
+        setView('loading');
+        setError(null);
+        try {
+            const base64Image = await toBase64(file);
+            const result = await analyzeImage(base64Image, language);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setHistory(prev => [{ id: new Date().toISOString(), timestamp: Date.now(), imageDataUrl: reader.result, analysis: result }, ...prev].slice(0, MAX_HISTORY_ITEMS));
+            };
+            reader.readAsDataURL(file);
+            setCurrentResult(result);
+            setView('results');
+        } catch (err) {
+            console.error(err);
+            setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+            setView('error');
+        }
+    }, [language, setHistory]);
+
+    const handleNavigate = (targetView) => {
+        if (['scan', 'history', 'settings'].includes(targetView)) {
+             setCurrentResult(null);
+             setError(null);
+        }
+        setView(targetView);
+    };
+    
+    const handleSelectHistoryItem = (item) => { 
+        setCurrentResult(item.analysis); 
+        setView('results'); 
+    };
+    
+    const handleDeleteHistoryItem = (id) => setHistory(prev => prev.filter(item => item.id !== id));
+    
+    const handleClearHistory = () => {
+        setHistory([]);
+        if (view === 'settings' || view === 'history') {
+             handleNavigate('scan');
+        }
+    };
+
+    const handleBack = () => {
+        if (view === 'results') {
+            const cameFromHistory = history.some(item => JSON.stringify(item.analysis) === JSON.stringify(currentResult));
+            handleNavigate(cameFromHistory ? 'history' : 'scan');
+        } else if (view === 'settings') {
+            handleNavigate('scan');
+        }
+    };
+    
+    const handleRetry = () => {
+        setError(null);
+        handleNavigate('scan');
+    };
+
+    const renderView = () => {
+        switch (view) {
+            case 'scan': return <ImageSelector onImageSelect={handleImageSelect} language={language} />;
+            case 'loading': return <LoadingSpinner language={language} />;
+            case 'results': return currentResult ? <AnalysisViewFull result={currentResult} language={language} /> : <ErrorDisplay onRetry={handleRetry} language={language} message="Result not found." />;
+            case 'history': return <HistoryViewFull history={history} onSelect={handleSelectHistoryItem} onDelete={handleDeleteHistoryItem} language={language} />;
+            case 'settings': return <SettingsView language={language} setLanguage={setLanguage} onClearHistory={handleClearHistory} t={t} />;
+            case 'error': return <ErrorDisplay onRetry={handleRetry} language={language} message={error} />;
+            default: return <ImageSelector onImageSelect={handleImageSelect} language={language} />;
+        }
+    };
+
+    const showHeader = ['results', 'settings'].includes(view);
+    const showBottomNav = !['loading', 'error'].includes(view);
+    
+    const getHeaderTitle = () => {
+        if (view === 'results' && currentResult) {
+            if (typeof currentResult.overallHealthRating === 'number') {
+                const grade = getGradeFromRating(currentResult.overallHealthRating);
+                return `${currentResult.productName} [${grade}]`;
+            }
+            return currentResult.productName;
+        }
+        if (view === 'settings') return t('settings');
+        return t('appTitle');
+    };
+
+    return (
+        <div className="h-screen flex flex-col bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
+            {showHeader && <SimpleHeader title={getHeaderTitle()} onBack={handleBack} />}
+            <main className={`flex-grow overflow-y-auto ${showHeader ? 'pt-16' : ''} ${showBottomNav ? 'pb-16' : ''}`}>
+                {renderView()}
+            </main>
+            {showBottomNav && <BottomNav currentView={view} onNavigate={handleNavigate} t={t} />}
+        </div>
+    );
+};
+
+
+// ======== From index.tsx ========
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error("Could not find root element to mount to");
+const root = ReactDOM.createRoot(rootElement);
+root.render(<React.StrictMode><App /></React.StrictMode>);
+    </script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
